@@ -11,6 +11,7 @@ from datetime import datetime
 from utils.config import DATASET_PATHS
 from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh
 from models import vgg19
+from myRes import resnet101,wide_resnet101_2,resnet152,resnext101_32x8d,resnext50_32x4d
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 import utils.log_utils as log_utils
@@ -64,12 +65,13 @@ class Trainer(object):
         
         downsample_ratio = 8
         self.datasets = {
-            'train': Crowd(os.path.join(args.data_path,DATASET_PATHS[dataset_name]["train_path"]),
+            'train': Crowd(os.path.join(args.data_path,
+                           DATASET_PATHS[dataset_name]["train_path"]),
+                           crop_size=args.crop_size,
+                           downsample_ratio=downsample_ratio, method='train'),
+            'val': Crowd(os.path.join(args.data_path, DATASET_PATHS[dataset_name]["val_path"]),
                             crop_size=args.crop_size,
-                            downsample_ratio=downsample_ratio,method='train'),
-            'val': Crowd(os.path.join(args.data_path,DATASET_PATHS[dataset_name]["val_path"]),
-                            crop_size=args.crop_size,
-                            downsample_ratio=downsample_ratio,method='val')
+                            downsample_ratio=downsample_ratio, method='val')
         }
 
         self.dataloaders = {x: DataLoader(self.datasets[x],
@@ -81,9 +83,11 @@ class Trainer(object):
                                           num_workers=args.num_workers * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
+        #self.model = vgg19()
         self.model = vgg19()
         self.model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr,
+                                    weight_decay=args.weight_decay)
 
         self.start_epoch = 0
         if args.resume:

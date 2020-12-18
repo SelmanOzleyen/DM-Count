@@ -31,13 +31,13 @@
             "train_path":"train"
         },
         "sha":{
-            "data_path":"/ShanghaiTech/part_A",
-            "val_path":"test_data",
-            "train_path":"train_data"
+            "data_path":"/home/selman/Desktop/final_project1/datasets/SHT/ShanghaiTech/part_A",
+            "val_path":"val",
+            "train_path":"train"
         },
         "shb":{
-            "data_path":"~/ShanghaiTech/part_B",
-            "val_path":"test_data",
+            "data_path":"/home/selman/Desktop/final_project1/datasets/SHT/ShanghaiTech/part_B",
+            "val_path":"val",
             "train_path":"train_data"
         }
     }

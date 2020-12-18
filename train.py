@@ -55,8 +55,9 @@ def parse_args():
     # overriding default arguments
     args = argparse.Namespace(**def_args_dict)
 
-    # if auto-resume is specified and not resume is not specified explicitly 
-    if not args.resume and 'auto_resume' in args:
+    # if auto-resume is specified and not resume is
+    # not specified explicitly
+    if not args.resume and 'auto_resume' in args and args.auto_resume:
         utils.arg_utils.assign_latest_cp(args)
 
     return args

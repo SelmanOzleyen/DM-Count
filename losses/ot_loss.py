@@ -16,14 +16,13 @@ class OT_Loss(Module):
         # coordinate is same to image space, set to constant since crop size is same
         self.cood = torch.arange(0, c_size, step=stride,
                                  dtype=torch.float32, device=device) + stride / 2
-        self.cood_sqaured = self.cood*self.cood # storing the precalculated matrix
+        self.cood_sqaured = self.cood*self.cood  # storing the precalculated matrix
         self.density_size = self.cood.size(0)
         self.cood.unsqueeze_(0) # [1, #cood]
         if self.norm_cood:
-            self.cood = self.cood / c_size * 2 - 1 # map to [-1, 1]
+            self.cood = self.cood / c_size * 2 - 1  # map to [-1, 1]
         self.output_size = self.cood.size(1)
         self.softmax = torch.nn.Softmax(dim=0)
-
 
     def forward(self, normed_density, unnormed_density, points):
         batch_size = normed_density.size(0)

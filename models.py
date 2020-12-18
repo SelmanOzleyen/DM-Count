@@ -1,11 +1,17 @@
+from torchvision.models import resnet
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from torch.nn import functional as F
+from typing import Type, Any, Callable, Union, List, Optional
+from torch import Tensor
+from torchvision.models.resnet import BasicBlock, Bottleneck
+from torchvision.models.resnet import load_state_dict_from_url
 
 __all__ = ['vgg19']
 model_urls = {
     'vgg19': 'https://download.pytorch.org/models/vgg19-dcbb9e9d.pth',
 }
+
 
 class VGG(nn.Module):
     def __init__(self, features):
@@ -29,6 +35,7 @@ class VGG(nn.Module):
         mu_normed = mu / (mu_sum + 1e-6)
         return mu, mu_normed
 
+
 def make_layers(cfg, batch_norm=False):
     layers = []
     in_channels = 3
@@ -44,14 +51,17 @@ def make_layers(cfg, batch_norm=False):
             in_channels = v
     return nn.Sequential(*layers)
 
+
 cfg = {
     'E': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512]
 }
+
 
 def vgg19():
     """VGG 19-layer model (configuration "E")
         model pre-trained on ImageNet
     """
     model = VGG(make_layers(cfg['E']))
-    model.load_state_dict(model_zoo.load_url(model_urls['vgg19']), strict=False)
+    model.load_state_dict(model_zoo.load_url(model_urls['vgg19']),
+                          strict=False)
     return model

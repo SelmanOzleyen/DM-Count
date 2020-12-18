@@ -4,6 +4,7 @@ import os
 import numpy as np
 import datasets.crowd as crowd
 from models import vgg19
+from myRes import resnet101
 import utils.arg_utils
 from utils.config import DATASET_LIST,DATASET_PARAMS,DATASET_PATHS,ARGS,DOWNSAMPLE_RATIO
 
@@ -69,7 +70,7 @@ if __name__ == '__main__':
         if not os.path.exists(args.pred_density_map_path):
             os.makedirs(args.pred_density_map_path)
 
-    model = vgg19()
+    model = myRes.resnet101()
     model.to(device)
     model.load_state_dict(torch.load(model_path, device))
     model.eval()
@@ -81,7 +82,6 @@ if __name__ == '__main__':
             outputs, _ = model(inputs)
         img_err = count[0].item() - torch.sum(outputs).item()
 
-        print(name, img_err, count[0].item(), torch.sum(outputs).item())
         image_errs.append(img_err)
 
         if args.pred_density_map_path:
