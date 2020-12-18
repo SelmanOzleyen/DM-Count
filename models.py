@@ -1,4 +1,3 @@
-from torchvision.models import resnet
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from torch.nn import functional as F
