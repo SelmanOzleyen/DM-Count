@@ -11,7 +11,7 @@ M_EPS = 1e-16
 
 
 def sinkhorn(a, b, C, reg=1e-1, method='sinkhorn', maxIter=1000, tau=1e3,
-             stopThr=1e-9, verbose=False, log=True, warm_start=None, eval_freq=10, print_freq=200, **kwargs):
+             stopThr=1e-9, verbose=True, log=True, warm_start=None, eval_freq=10, print_freq=200, **kwargs):
     """
     Solve the entropic regularization optimal transport
     The input should be PyTorch tensors
@@ -86,7 +86,7 @@ def sinkhorn(a, b, C, reg=1e-1, method='sinkhorn', maxIter=1000, tau=1e3,
 
 
 def sinkhorn_knopp(a, b, C, reg=1e-1, maxIter=1000, stopThr=1e-9,
-                   verbose=False, log=False, warm_start=None, eval_freq=10, print_freq=200, **kwargs):
+                   verbose=True, log=True, warm_start=None, eval_freq=10, print_freq=200, **kwargs):
     """
     Solve the entropic regularization optimal transport
     The input should be PyTorch tensors
@@ -143,7 +143,7 @@ def sinkhorn_knopp(a, b, C, reg=1e-1, maxIter=1000, stopThr=1e-9,
     assert na >= 1 and nb >= 1, 'C needs to be 2d'
     assert na == a.shape[0] and nb == b.shape[0], "Shape of a or b does't match that of C"
     assert reg > 0, 'reg should be greater than 0'
-    # assert a.min() >= 0. and b.min() >= 0., 'Elements in a or b less than 0'
+    #assert a.min() >= 0. and b.min() >= 0., 'Elements in a or b less than 0'
     # unnecessary check for our special case
     if log:
         log = {'err': []}

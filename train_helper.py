@@ -11,6 +11,7 @@ from datetime import datetime
 from utils.config import DATASET_PATHS
 from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh
 from models import vgg19
+from avgg import vgg16_bn_dil
 from myRes import resnet101,wide_resnet101_2,resnet152,resnext101_32x8d,resnext50_32x4d
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
@@ -84,7 +85,15 @@ class Trainer(object):
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
         #self.model = vgg19()
-        self.model = vgg19()
+        #self.model = vgg19()
+        self.model = vgg16_bn_dil()
+        ct = 0
+        for child in self.model.children():
+            ct += 1
+            if ct < 2:
+                #print(child)
+                for param in child.parameters():
+                    param.requires_grad = False
         self.model.to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr,
                                     weight_decay=args.weight_decay)
@@ -144,6 +153,7 @@ class Trainer(object):
 
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
+                
                 # Compute OT loss.
                 ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
                 ot_loss = ot_loss * self.args.wot
