@@ -129,8 +129,7 @@ class Trainer(object):
         """training process"""
         train_args = self.train_args
         for epoch in range(self.start_epoch, train_args['max_epoch'] + 1):
-            self.logger.add_text('log/train', '-' * 5 + 'Epoch {}/{}'.format(epoch, train_args['max_epoch']) + '-' * 5,
-                                 epoch)
+            print('log/train', '-' * 5 + 'Epoch {}/{}'.format(epoch, train_args['max_epoch']) + '-' * 5)
             self.epoch = epoch
             self.train_eopch()
             if epoch % train_args['val_epoch'] == 0 and epoch >= train_args['val_start']:
@@ -202,7 +201,7 @@ class Trainer(object):
         self.logger.add_scalar('count_loss/train', epoch_count_loss.get_avg(), self.epoch)
         self.logger.add_scalar('tv_loss/train', epoch_tv_loss.get_avg(), self.epoch)
         self.logger.add_scalar('time_cost/train', time.time() - epoch_start, self.epoch)
-        self.logger.add_text(
+        print(
             'log/train',
             'Epoch {} Train, Loss: {:.2f}, OT Loss: {:.2e}, Wass Distance: {:.2f}, OT obj value: {:.2f}, '
             'Count Loss: {:.2f}, TV Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
@@ -244,8 +243,8 @@ class Trainer(object):
         self.logger.add_scalar('mse/val', mse, self.epoch)
         self.logger.add_scalar('mae/val', mae, self.epoch)
         self.logger.add_scalar('time_cost/val', time.time() - epoch_start, self.epoch)
-        self.logger.add_text('log/val', 'Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
-                             .format(self.epoch, mse, mae, time.time() - epoch_start), self.epoch)
+        print('log/val', 'Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
+              .format(self.epoch, mse, mae, time.time() - epoch_start))
 
         model_state_dic = self.model.state_dict()
         if (2.0 * mse + mae) < (2.0 * self.best_mse + self.best_mae):
@@ -257,8 +256,8 @@ class Trainer(object):
                                                                                          self.best_mae,
                                                                                          self.epoch),
                                  self.epoch)
-            for k, v in {'model_mse': mse, 'model_mae': mae, 'epoch_no': self.epoch}.items():
-                self.logger.add_scalar(k+'/best/val', v, self.epoch)
+            for k, v in {'best_mse': mse, 'best_mae': mae}.items():
+                self.logger.add_scalar(k+'/val', v, self.epoch)
 
             s = signal.signal(signal.SIGINT, signal.SIG_IGN)
             torch.save(model_state_dic, os.path.join(self.save_dir, filename))
