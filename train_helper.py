@@ -12,6 +12,7 @@ from datetime import datetime
 # from models import vgg19
 # from myRes import resnet101, wide_resnet101_2, resnet152, resnext101_32x8d, resnext50_32x4d
 from avgg import vgg16_bn
+from myRes import vgg16dres
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 from torch.utils.tensorboard import SummaryWriter
@@ -90,7 +91,7 @@ class Trainer(object):
                                           num_workers=train_args['num_workers'] * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
-        self.model = vgg16_bn(self.device)
+        self.model = vgg16dres(self.device)
         self.model.to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
                                     weight_decay=train_args['weight_decay'])
