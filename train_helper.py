@@ -1,4 +1,5 @@
 import os
+import signal
 import time
 import torch
 import torch.nn as nn
@@ -8,14 +9,12 @@ from torch.utils.data.dataloader import default_collate
 import numpy as np
 from datetime import datetime
 
-from utils.config import DATASET_PATHS
-from datasets.crowd import Crowd_qnrf, Crowd_nwpu, Crowd_sh
-from models import vgg19
-from avgg import vgg16_bn_dil
-from myRes import resnet101,wide_resnet101_2,resnet152,resnext101_32x8d,resnext50_32x4d
+# from models import vgg19
+# from myRes import resnet101, wide_resnet101_2, resnet152, resnext101_32x8d, resnext50_32x4d
+from avgg import vgg16_bn
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
-import utils.log_utils as log_utils
+from torch.utils.tensorboard import SummaryWriter
 
 
 def train_collate(batch):
@@ -29,30 +28,36 @@ def train_collate(batch):
 
 class Trainer(object):
     def __init__(self, args):
-        self.args = args
+        self.train_args = args['train']
+        self.datargs = args['dataset_paths'][self.train_args['dataset']]
 
     def setup(self):
-        args = self.args
-        sub_dir = '{}_input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}'.format(
-            args.dataset,args.crop_size, args.wot, args.wtv, args.reg, args.num_of_iter_in_ot, args.norm_cood)
+        train_args = self.train_args
+        datargs = self.datargs
+        sub_dir = '{}-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}'.format(
+            train_args['dataset'], train_args['crop_size'], train_args['wot'],
+            train_args['wtv'], train_args['reg'], train_args['num_of_iter_in_ot'],
+            train_args['norm_cood'])
 
-        self.save_dir = os.path.join(args.out_path,'ckpts', sub_dir)
+        self.save_dir = os.path.join(train_args['out_path'], 'ckpts', sub_dir)
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-
         time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
-        self.logger = log_utils.get_logger(os.path.join(self.save_dir, 'train-{:s}.log'.format(time_str)))
-        log_utils.print_config(vars(args), self.logger)
+        log_dir = os.path.join(train_args['out_path'], 'runs', train_args['dataset'], train_args['conf_name'],
+                               time_str)
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
 
+        # TODO: Verify args
+        self.logger = SummaryWriter(log_dir)
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
             self.device_count = torch.cuda.device_count()
             assert self.device_count == 1
-            self.logger.info('Using {} gpus'.format(self.device_count))
         else:
             raise Exception("Gpu is not available")
 
-        dataset_name = args.dataset.lower()
+        dataset_name = train_args['dataset'].lower()
         if dataset_name == 'qnrf':
             from datasets.crowd import Crowd_qnrf as Crowd
         elif dataset_name == 'nwpu':
@@ -63,57 +68,37 @@ class Trainer(object):
             from datasets.crowd import Crowd_sh as Crowd
         else:
             raise NotImplementedError
-        
-        downsample_ratio = 8
+
+        downsample_ratio = train_args['downsample_ratio']
         self.datasets = {
-            'train': Crowd(os.path.join(args.data_path,
-                           DATASET_PATHS[dataset_name]["train_path"]),
-                           crop_size=args.crop_size,
+            'train': Crowd(os.path.join(datargs['data_path'],
+                                        datargs["train_path"]),
+                           crop_size=train_args['crop_size'],
                            downsample_ratio=downsample_ratio, method='train'),
-            'val': Crowd(os.path.join(args.data_path, DATASET_PATHS[dataset_name]["val_path"]),
-                            crop_size=args.crop_size,
-                            downsample_ratio=downsample_ratio, method='val')
+            'val': Crowd(os.path.join(datargs['data_path'],
+                                      datargs["val_path"]),
+                         crop_size=train_args['crop_size'],
+                         downsample_ratio=downsample_ratio, method='val')
         }
 
         self.dataloaders = {x: DataLoader(self.datasets[x],
                                           collate_fn=(train_collate
                                                       if x == 'train' else default_collate),
-                                          batch_size=(args.batch_size
+                                          batch_size=(train_args['batch_size']
                                                       if x == 'train' else 1),
                                           shuffle=(True if x == 'train' else False),
-                                          num_workers=args.num_workers * self.device_count,
+                                          num_workers=train_args['num_workers'] * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
-        #self.model = vgg19()
-        #self.model = vgg19()
-        self.model = vgg16_bn_dil()
-        ct = 0
-        for child in self.model.children():
-            ct += 1
-            if ct < 2:
-                #print(child)
-                for param in child.parameters():
-                    param.requires_grad = False
+        self.model = vgg16_bn(self.device)
         self.model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr,
-                                    weight_decay=args.weight_decay)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
+                                    weight_decay=train_args['weight_decay'])
 
         self.start_epoch = 0
-        if args.resume:
-            self.logger.info('loading pretrained model from ' + args.resume)
-            suf = args.resume.rsplit('.', 1)[-1]
-            if suf == 'tar':
-                checkpoint = torch.load(args.resume, self.device)
-                self.model.load_state_dict(checkpoint['model_state_dict'])
-                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-                self.start_epoch = checkpoint['epoch'] + 1
-            elif suf == 'pth':
-                self.model.load_state_dict(torch.load(args.resume, self.device))
-        else:
-            self.logger.info('random initialization')
-
-        self.ot_loss = OT_Loss(args.crop_size, downsample_ratio, args.norm_cood, self.device, args.num_of_iter_in_ot,
-                               args.reg)
+        self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
+                               train_args['norm_cood'], self.device, train_args['num_of_iter_in_ot'],
+                               train_args['reg'])
         self.tv_loss = nn.L1Loss(reduction='none').to(self.device)
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)
@@ -121,15 +106,34 @@ class Trainer(object):
         self.best_mae = np.inf
         self.best_mse = np.inf
         self.best_count = 0
+        if train_args['resume']:
+            self.logger.add_text('log/train', 'loading pretrained model from ' + train_args['resume'], 0)
+            suf = train_args['resume'].rsplit('.', 1)[-1]
+            if suf == 'tar':
+                checkpoint = torch.load(train_args['resume'], self.device)
+                self.model.load_state_dict(checkpoint['model_state_dict'])
+                self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                self.start_epoch = checkpoint['epoch'] + 1
+                self.best_count = checkpoint['best_count']
+                self.best_mae = checkpoint['best_mae']
+                self.best_mse = checkpoint['best_mse']
+            elif suf == 'pth':
+                self.model.load_state_dict(torch.load(train_args['resume'], self.device))
+        else:
+            self.logger.add_text('log/train', 'random initialization', 0)
+        img_cnts = {'val_image_count': len(self.dataloaders['val']),
+                    'train_image_count': len(self.dataloaders['train'])}
+        self.logger.add_hparams({**self.train_args, **img_cnts}, {'dummy': True}, run_name='hparams')
 
     def train(self):
         """training process"""
-        args = self.args
-        for epoch in range(self.start_epoch, args.max_epoch + 1):
-            self.logger.info('-' * 5 + 'Epoch {}/{}'.format(epoch, args.max_epoch) + '-' * 5)
+        train_args = self.train_args
+        for epoch in range(self.start_epoch, train_args['max_epoch'] + 1):
+            self.logger.add_text('log/train', '-' * 5 + 'Epoch {}/{}'.format(epoch, train_args['max_epoch']) + '-' * 5,
+                                 epoch)
             self.epoch = epoch
             self.train_eopch()
-            if epoch % args.val_epoch == 0 and epoch >= args.val_start:
+            if epoch % train_args['val_epoch'] == 0 and epoch >= train_args['val_start']:
                 self.val_epoch()
 
     def train_eopch(self):
@@ -150,14 +154,15 @@ class Trainer(object):
             points = [p.to(self.device) for p in points]
             gt_discrete = gt_discrete.to(self.device)
             N = inputs.size(0)
+            wot = self.train_args['wot']
+            wtv = self.train_args['wtv']
 
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
-                
                 # Compute OT loss.
                 ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
-                ot_loss = ot_loss * self.args.wot
-                ot_obj_value = ot_obj_value * self.args.wot
+                ot_loss = ot_loss * wot
+                ot_obj_value = ot_obj_value * wot
                 epoch_ot_loss.update(ot_loss.item(), N)
                 epoch_ot_obj_value.update(ot_obj_value.item(), N)
                 epoch_wd.update(wd, N)
@@ -172,7 +177,7 @@ class Trainer(object):
                     2).unsqueeze(3)
                 gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
                 tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
-                    1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * self.args.wtv
+                    1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
                 epoch_tv_loss.update(tv_loss.item(), N)
 
                 loss = ot_loss + count_loss + tv_loss
@@ -186,25 +191,42 @@ class Trainer(object):
                 epoch_loss.update(loss.item(), N)
                 epoch_mse.update(np.mean(pred_err * pred_err), N)
                 epoch_mae.update(np.mean(abs(pred_err)), N)
-
-        self.logger.info(
+        mae = epoch_mae.get_avg()
+        mse = np.sqrt(epoch_mse.get_avg())
+        self.logger.add_scalar('loss/train', epoch_loss.get_avg(), self.epoch)
+        self.logger.add_scalar('mse/train', mse, self.epoch)
+        self.logger.add_scalar('mae/train', mae, self.epoch)
+        self.logger.add_scalar('ot_loss/train', epoch_ot_loss.get_avg(), self.epoch)
+        self.logger.add_scalar('wd/train', epoch_wd.get_avg(), self.epoch)
+        self.logger.add_scalar('ot_obj_val/train', epoch_ot_obj_value.get_avg(), self.epoch)
+        self.logger.add_scalar('count_loss/train', epoch_count_loss.get_avg(), self.epoch)
+        self.logger.add_scalar('tv_loss/train', epoch_tv_loss.get_avg(), self.epoch)
+        self.logger.add_scalar('time_cost/train', time.time() - epoch_start, self.epoch)
+        self.logger.add_text(
+            'log/train',
             'Epoch {} Train, Loss: {:.2f}, OT Loss: {:.2e}, Wass Distance: {:.2f}, OT obj value: {:.2f}, '
             'Count Loss: {:.2f}, TV Loss: {:.2f}, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
-                .format(self.epoch, epoch_loss.get_avg(), epoch_ot_loss.get_avg(), epoch_wd.get_avg(),
-                        epoch_ot_obj_value.get_avg(), epoch_count_loss.get_avg(), epoch_tv_loss.get_avg(),
-                        np.sqrt(epoch_mse.get_avg()), epoch_mae.get_avg(),
-                        time.time() - epoch_start))
+            .format(self.epoch, epoch_loss.get_avg(), epoch_ot_loss.get_avg(), epoch_wd.get_avg(),
+                    epoch_ot_obj_value.get_avg(), epoch_count_loss.get_avg(), epoch_tv_loss.get_avg(),
+                    np.sqrt(epoch_mse.get_avg()), epoch_mae.get_avg(),
+                    time.time() - epoch_start), self.epoch)
         model_state_dic = self.model.state_dict()
-        save_path = os.path.join(self.save_dir, '{}_ckpt.tar'.format(self.epoch))
+        save_path = os.path.join(self.save_dir, 'latest_ckpt.tar')
+        # TODO: Reset best counts option
+
+        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
         torch.save({
             'epoch': self.epoch,
+            'best_mae': self.best_mae,
+            'best_mse': self.best_mse,
+            'best_count': self.best_count,
             'optimizer_state_dict': self.optimizer.state_dict(),
             'model_state_dict': model_state_dic
         }, save_path)
+        signal.signal(signal.SIGINT, s)
         self.save_list.append(save_path)
 
     def val_epoch(self):
-        args = self.args
         epoch_start = time.time()
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
@@ -219,15 +241,26 @@ class Trainer(object):
         epoch_res = np.array(epoch_res)
         mse = np.sqrt(np.mean(np.square(epoch_res)))
         mae = np.mean(np.abs(epoch_res))
-        self.logger.info('Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
-                         .format(self.epoch, mse, mae, time.time() - epoch_start))
+        self.logger.add_scalar('mse/val', mse, self.epoch)
+        self.logger.add_scalar('mae/val', mae, self.epoch)
+        self.logger.add_scalar('time_cost/val', time.time() - epoch_start, self.epoch)
+        self.logger.add_text('log/val', 'Epoch {} Val, MSE: {:.2f} MAE: {:.2f}, Cost {:.1f} sec'
+                             .format(self.epoch, mse, mae, time.time() - epoch_start), self.epoch)
 
         model_state_dic = self.model.state_dict()
         if (2.0 * mse + mae) < (2.0 * self.best_mse + self.best_mae):
             self.best_mse = mse
             self.best_mae = mae
-            self.logger.info("save best mse {:.2f} mae {:.2f} model epoch {}".format(self.best_mse,
-                                                                                     self.best_mae,
-                                                                                     self.epoch))
-            torch.save(model_state_dic, os.path.join(self.save_dir, 'best_model_{}.pth'.format(self.best_count)))
+            filename = 'best_model_{}.pth'.format(self.best_count)
+            self.logger.add_text('log/val',
+                                 "save best mse {:.2f} mae {:.2f} model epoch {}".format(self.best_mse,
+                                                                                         self.best_mae,
+                                                                                         self.epoch),
+                                 self.epoch)
+            for k, v in {'model_mse': mse, 'model_mae': mae, 'epoch_no': self.epoch}.items():
+                self.logger.add_scalar(k+'/best/val', v, self.epoch)
+
+            s = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            torch.save(model_state_dic, os.path.join(self.save_dir, filename))
+            signal.signal(signal.SIGINT, s)
             self.best_count += 1

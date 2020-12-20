@@ -3,13 +3,22 @@ import torch.nn as nn
 from torch.nn import functional as F
 import torch.utils.model_zoo as model_zoo
 from typing import Type, Any, Callable, Union, List, Optional
+
 __all__ = [
-    'VGG','vgg16_bn',
+    'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn',
+    'vgg19_bn', 'vgg19',
 ]
 
 
 model_urls = {
+    'vgg11': 'https://download.pytorch.org/models/vgg11-bbd30ac9.pth',
+    'vgg13': 'https://download.pytorch.org/models/vgg13-c768596a.pth',
+    'vgg16': 'https://download.pytorch.org/models/vgg16-397923af.pth',
+    'vgg19': 'https://download.pytorch.org/models/vgg19-dcbb9e9d.pth',
+    'vgg11_bn': 'https://download.pytorch.org/models/vgg11_bn-6002323d.pth',
+    'vgg13_bn': 'https://download.pytorch.org/models/vgg13_bn-abd245e5.pth',
     'vgg16_bn': 'https://download.pytorch.org/models/vgg16_bn-6c64b313.pth',
+    'vgg19_bn': 'https://download.pytorch.org/models/vgg19_bn-c79401a0.pth',
 }
 
 
@@ -17,42 +26,33 @@ class VGG(nn.Module):
 
     def __init__(
         self,
+        device,
         features: nn.Module,
     ) -> None:
         super(VGG, self).__init__()
         self.features = features
         self.dil_layers = self.reg_layer = nn.Sequential(
-            nn.Conv2d(512, 512, kernel_size=3, padding=2,dilation=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=2, dilation=2),
             nn.Dropout(inplace=True),
-            nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=2,dilation=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=2, dilation=2),
             nn.Dropout(inplace=True),
-            nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(512, 512, kernel_size=3, padding=2,dilation=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=2, dilation=2),
             nn.Dropout(inplace=True),
-            nn.BatchNorm2d(512),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(512, 256, kernel_size=3, padding=2,dilation=2),
+            nn.Conv2d(512, 256, kernel_size=3, padding=2, dilation=2),
             nn.Dropout(inplace=True),
-            nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(256, 128, kernel_size=3, padding=2,dilation=2),
+            nn.Conv2d(256, 128, kernel_size=3, padding=2, dilation=2),
             nn.Dropout(inplace=True),
-            nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
-
-            nn.Conv2d(128, 64, kernel_size=3, padding=2,dilation=2),
-            nn.Dropout(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True)
-        )
-        self.density_layer = nn.Sequential(nn.Conv2d(64, 1, 1), nn.ReLU())
+        ).to(device=device)
+        self.density_layer = nn.Sequential(nn.Conv2d(128, 1, 1), nn.ReLU()).to(device=device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
@@ -62,7 +62,6 @@ class VGG(nn.Module):
         mu_sum = mu.view([B, -1]).sum(1).unsqueeze(1).unsqueeze(2).unsqueeze(3)
         mu_normed = mu / (mu_sum + 1e-6)
         return mu, mu_normed
-
 
 
 def make_layers(cfg, batch_norm=True):
@@ -86,10 +85,8 @@ cfg = {
 }
 
 
-def vgg16_bn_dil(pretrained: bool = True, progress: bool = True, **kwargs: Any) -> VGG:
-    model = VGG(make_layers(cfg['D']))
-    model.load_state_dict(model_zoo.load_url(model_urls['vgg16_bn']),
+def vgg16_bn(map_location, pretrained: bool = True, progress: bool = True) -> VGG:
+    model = VGG(map_location, make_layers(cfg['D']))
+    model.load_state_dict(model_zoo.load_url(model_urls['vgg16_bn'], map_location=map_location),
                           strict=False)
     return model
-
-

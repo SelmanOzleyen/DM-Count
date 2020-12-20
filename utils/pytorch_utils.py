@@ -1,5 +1,6 @@
 import os
 
+
 def adjust_learning_rate(optimizer, epoch, initial_lr=0.001, decay_epoch=10):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lr = max(initial_lr * (0.1 ** (epoch // decay_epoch)), 1e-6)

@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 from torch.nn import functional as F
-from typing import Type, Any, Callable, Union, List, Optional
 
 
 __all__ = ['vgg19']
@@ -15,16 +14,20 @@ class VGG(nn.Module):
         super(VGG, self).__init__()
         self.features = features
         self.reg_layer = nn.Sequential(
-            nn.Conv2d(512, 256, kernel_size=3, padding=1),
+            nn.Conv2d(512, 512, kernel_size=3, padding=2, dilation=2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(256, 128, kernel_size=3, padding=1),
+            nn.Conv2d(512, 512, kernel_size=3, padding=2, dilation=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(512, 256, kernel_size=3, padding=2, dilation=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 128, kernel_size=3, padding=2, dilation=2),
             nn.ReLU(inplace=True),
         )
         self.density_layer = nn.Sequential(nn.Conv2d(128, 1, 1), nn.ReLU())
 
     def forward(self, x):
         x = self.features(x)
-        x = F.upsample_bilinear(x, scale_factor=2)
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
         x = self.reg_layer(x)
         mu = self.density_layer(x)
         B, C, H, W = mu.size()
