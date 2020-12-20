@@ -52,20 +52,18 @@ if __name__ == '__main__':
                     downsample_ratio=8, method='val')
     dataloader = torch.utils.data.DataLoader(dataset, 1, shuffle=False,
                                              num_workers=1, pin_memory=True)
-    print("see")
     time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
     log_dir = os.path.join('./runs', 'test_res', args['dataset'], time_str)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    print(log_dir)
     logger = SummaryWriter(log_dir='runs')
-    print("sre")
     create_image = args['pred_density_map']
 
     model = vgg16dres(map_location=device)
     # model = vgg19()
     model.to(device)
     model.load_state_dict(torch.load(model_path, device))
+    logger.add_graph(model, verbose=True)
     model.eval()
     image_errs = []
     logger.add_scalar('img_count', len(dataloader))
@@ -80,22 +78,26 @@ if __name__ == '__main__':
         image_errs.append(img_err)
 
         if create_image:
-            import cv2
+            # import cv2
             mse = np.sqrt(np.mean(np.square(image_errs[-1])))
             mae = np.mean(np.abs(image_errs[-1]))
-            print(mae, mse)
-            vis_img = outputs[0, 0].cpu().numpy()
+            print(outputs.shape)
+            vis_img = outputs[0]
             # normalize density map values from 0 to 1, then map it to 0-255.
             vis_img = (vis_img - vis_img.min()) / (vis_img.max() - vis_img.min() + 1e-5)
-            vis_img = (vis_img * 255).astype(np.uint8)
-            vis_img = cv2.applyColorMap(vis_img, cv2.COLORMAP_JET)
+            vis_img = (vis_img * 255)
+            # vis_img = cv2.applyColorMap(vis_img, cv2.COLORMAP_JET)
+            print(vis_img.shape)
             logger.add_image(str(name[0]), vis_img)
+            logger.add_image('img'+str(name[0]), inputs[0])
+            logger.add_scalar('img_mae', mae)
+            logger.add_scalar('img_mse', mse)
             # cv2.imwrite(os.path.join(args.pred_density_map_path, str(name[0]) + '.png'), vis_img)
 
     image_errs = np.array(image_errs)
     mse = np.sqrt(np.mean(np.square(image_errs)))
     mae = np.mean(np.abs(image_errs))
-    logger.add_scalar('mae', mae)
-    logger.add_scalar('mse', mse)
-    logger.add_graph()
+    logger.add_scalar('dataset_mae', mae)
+    logger.add_scalar('dataset_mse', mse)
+    
     print('{}: mae {}, mse {}\n'.format(model_path, mae, mse))
