@@ -1,0 +1,22 @@
+{
+    "qnrf":{
+        "data_path":"data/UCF-Train-Val-Test",
+        "val_path":"val",
+        "train_path":"train"
+    },
+    "nwpu":{
+        "data_path":"data/UCF-Train-Val-Test",
+        "val_path":"val",
+        "train_path":"train"
+    },
+    "sha":{
+        "data_path":"/home/selman/datasets/sha",
+        "val_path":"val",
+        "train_path":"train"
+    },
+    "shb":{
+        "data_path":"/home/selman/datasets/shb",
+        "val_path":"val",
+        "train_path":"train_data"      
+    }
+}

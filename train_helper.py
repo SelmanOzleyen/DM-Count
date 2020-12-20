@@ -35,12 +35,13 @@ class Trainer(object):
     def setup(self):
         train_args = self.train_args
         datargs = self.datargs
-        sub_dir = '{}-input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}'.format(
-            train_args['dataset'], train_args['crop_size'], train_args['wot'],
+        sub_dir = 'input-{}_wot-{}_wtv-{}_reg-{}_nIter-{}_normCood-{}'.format(
+            train_args['crop_size'], train_args['wot'],
             train_args['wtv'], train_args['reg'], train_args['num_of_iter_in_ot'],
             train_args['norm_cood'])
 
-        self.save_dir = os.path.join(train_args['out_path'], 'ckpts', sub_dir)
+        self.save_dir = os.path.join(train_args['out_path'], 'ckpts',
+                                     train_args['conf_name'], train_args['dataset'], sub_dir)
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
         time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
