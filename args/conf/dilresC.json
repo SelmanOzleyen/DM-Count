@@ -1,0 +1,23 @@
+{
+    "out_path":"./",
+    "dataset":"sha",
+    "lr":1e-4,
+    "weight_decay":1e-4,
+    "crop_size":256,
+    "val_epoch":5,
+    "resume":false,
+    "max_epoch":1000,
+    "val_start":50,
+    "batch_size":15,
+    "device":"0",
+    "num_workers":3,
+    "downsample_ratio":8,
+    "wot":0.1,
+    "wtv":0.01,
+    "reg":10.0,
+    "num_of_iter_in_ot":100,
+    "norm_cood":0,
+    "conf_name":"dilresC",
+    "optimizer":"Adam"
+}
+

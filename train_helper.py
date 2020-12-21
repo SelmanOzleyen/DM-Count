@@ -92,10 +92,8 @@ class Trainer(object):
                             for x in ['train', 'val']}
         self.model = vgg16dres(self.device)
         self.model.to(self.device)
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=train_args['lr'],
-                                     weight_decay=train_args['weight_decay'])
-        # self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
-        #                             weight_decay=train_args['weight_decay'])
+        self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
+                                    weight_decay=train_args['weight_decay'])
 
         self.start_epoch = 0
         self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
@@ -125,7 +123,9 @@ class Trainer(object):
             self.logger.add_text('log/train', 'random initialization', 0)
         img_cnts = {'val_image_count': len(self.dataloaders['val']),
                     'train_image_count': len(self.dataloaders['train'])}
-        self.logger.add_hparams({**self.train_args, **img_cnts}, {}, run_name='hparams')
+        self.logger.add_hparams({**self.train_args, **img_cnts},
+                                {'best_mse': np.inf, 'best_mae': np.inf,
+                                'best_count': -1}, run_name='hparams')
 
     def train(self):
         """training process"""
@@ -256,9 +256,12 @@ class Trainer(object):
                                                                                          self.best_mae,
                                                                                          self.epoch),
                                  self.best_count)
-            for k, v in {'best_mse': mse, 'best_mae': mae, 'best_count': self.best_count}.items():
+            best_metrics = {'best_mse': mse, 'best_mae': mae, 'best_count': self.best_count}
+            for k, v in best_metrics.items():
                 self.logger.add_scalar(k+'/val', v, self.epoch)
-                self.logger.add_hparams({}, {'hparams/'+k: v}, run_name='hparams')
+            self.logger.add_hparams({},
+                                    {'best_mse': mse, 'best_mae': mae,
+                                    'best_count': self.best_count}, run_name='hparams')
 
             torch.save(model_state_dic, os.path.join(self.save_dir, filename))
             self.best_count += 1
