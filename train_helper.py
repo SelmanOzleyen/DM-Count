@@ -1,5 +1,4 @@
 import os
-import signal
 import time
 import torch
 import torch.nn as nn
@@ -10,8 +9,7 @@ import numpy as np
 from datetime import datetime
 
 # from models import vgg19
-# from myRes import resnet101, wide_resnet101_2, resnet152, resnext101_32x8d, resnext50_32x4d
-from avgg import vgg16_bn
+# from avgg import vgg16_bn
 from myRes import vgg16dres
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
@@ -28,9 +26,9 @@ def train_collate(batch):
 
 
 class Trainer(object):
-    def __init__(self, args):
-        self.train_args = args['train']
-        self.datargs = args['dataset_paths'][self.train_args['dataset']]
+    def __init__(self, args, datargs):
+        self.train_args = args
+        self.datargs = datargs
 
     def setup(self):
         train_args = self.train_args
@@ -40,11 +38,11 @@ class Trainer(object):
             train_args['wtv'], train_args['reg'], train_args['num_of_iter_in_ot'],
             train_args['norm_cood'])
 
+        time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
         self.save_dir = os.path.join(train_args['out_path'], 'ckpts',
-                                     train_args['conf_name'], train_args['dataset'], sub_dir)
+                                     train_args['conf_name'], train_args['dataset'], sub_dir, time_str)
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-        time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
         log_dir = os.path.join(train_args['out_path'], 'runs', train_args['dataset'], train_args['conf_name'],
                                time_str)
         if not os.path.exists(log_dir):
@@ -94,8 +92,10 @@ class Trainer(object):
                             for x in ['train', 'val']}
         self.model = vgg16dres(self.device)
         self.model.to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
-                                    weight_decay=train_args['weight_decay'])
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=train_args['lr'],
+                                     weight_decay=train_args['weight_decay'])
+        # self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
+        #                             weight_decay=train_args['weight_decay'])
 
         self.start_epoch = 0
         self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
@@ -125,7 +125,7 @@ class Trainer(object):
             self.logger.add_text('log/train', 'random initialization', 0)
         img_cnts = {'val_image_count': len(self.dataloaders['val']),
                     'train_image_count': len(self.dataloaders['train'])}
-        self.logger.add_hparams({**self.train_args, **img_cnts}, {'dummy': True}, run_name='hparams')
+        self.logger.add_hparams({**self.train_args, **img_cnts}, {}, run_name='hparams')
 
     def train(self):
         """training process"""
@@ -215,7 +215,6 @@ class Trainer(object):
         save_path = os.path.join(self.save_dir, 'latest_ckpt.tar')
         # TODO: Reset best counts option
 
-        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
         torch.save({
             'epoch': self.epoch,
             'best_mae': self.best_mae,
@@ -224,7 +223,6 @@ class Trainer(object):
             'optimizer_state_dict': self.optimizer.state_dict(),
             'model_state_dict': model_state_dic
         }, save_path)
-        signal.signal(signal.SIGINT, s)
         self.save_list.append(save_path)
 
     def val_epoch(self):
@@ -257,11 +255,10 @@ class Trainer(object):
                                  "save best mse {:.2f} mae {:.2f} model epoch {}".format(self.best_mse,
                                                                                          self.best_mae,
                                                                                          self.epoch),
-                                 self.epoch)
-            for k, v in {'best_mse': mse, 'best_mae': mae}.items():
+                                 self.best_count)
+            for k, v in {'best_mse': mse, 'best_mae': mae, 'best_count': self.best_count}.items():
                 self.logger.add_scalar(k+'/val', v, self.epoch)
+                self.logger.add_hparams({}, {'hparams/'+k: v}, run_name='hparams')
 
-            s = signal.signal(signal.SIGINT, signal.SIG_IGN)
             torch.save(model_state_dic, os.path.join(self.save_dir, filename))
-            signal.signal(signal.SIGINT, s)
             self.best_count += 1

@@ -12,14 +12,16 @@ def parse_args():
     args = parser.parse_args()
     with open(args.load_args) as f:
         args = json.load(f)
-
-    return args
+    with open('args/dataset_paths.json') as f:
+        datargs = json.load(f)
+    datargs = datargs[args['dataset']]
+    return args, datargs
 
 
 if __name__ == '__main__':
-    args = parse_args()
+    args, datargs = parse_args()
     torch.backends.cudnn.benchmark = True
-    os.environ['CUDA_VISIBLE_DEVICES'] = args['train']['device'].strip()  # set vis gpu
-    trainer = Trainer(args)
+    os.environ['CUDA_VISIBLE_DEVICES'] = args['device'].strip()  # set vis gpu
+    trainer = Trainer(args, datargs)
     trainer.setup()
     trainer.train()

@@ -3,7 +3,7 @@ import torch
 import os
 import numpy as np
 import json
-from myRes import vgg16dres
+# from myRes import vgg16dres
 from avgg import vgg16_bn
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
@@ -92,5 +92,4 @@ if __name__ == '__main__':
     mae = np.mean(np.abs(image_errs))
     logger.add_text('results/dataset_mae', str(mae))
     logger.add_text('results/dataset_mse', str(mse))
-    
     print('{}: mae {}, mse {}\n'.format(model_path, mae, mse))

@@ -1,4 +1,6 @@
 import os
+import signal
+import logging
 
 
 def adjust_learning_rate(optimizer, epoch, initial_lr=0.001, decay_epoch=10):
@@ -52,7 +54,6 @@ class AverageMeter(object):
 def set_trainable(model, requires_grad):
     for param in model.parameters():
         param.requires_grad = requires_grad
-
 
 
 def get_num_params(model):

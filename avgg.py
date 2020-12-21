@@ -1,13 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 import torch.utils.model_zoo as model_zoo
-from typing import Type, Any, Callable, Union, List, Optional
-
-__all__ = [
-    'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn',
-    'vgg19_bn', 'vgg19',
-]
 
 
 model_urls = {
