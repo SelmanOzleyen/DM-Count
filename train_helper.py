@@ -8,13 +8,13 @@ from torch.utils.data.dataloader import default_collate
 import numpy as np
 from datetime import datetime
 
-# from models import vgg19
+from models import vgg19
 # from avgg import vgg16_bn
-from myRes import vgg16dres
+from myRes2 import vgg16dres2
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 from torch.utils.tensorboard import SummaryWriter
-
+from myRes2 import vgg16dres2
 
 def train_collate(batch):
     transposed_batch = list(zip(*batch))
@@ -90,11 +90,16 @@ class Trainer(object):
                                           num_workers=train_args['num_workers'] * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
-        self.model = vgg16dres(self.device)
+        self.model = vgg16dres2(self.device)
         self.model.to(self.device)
+        # for p in self.model.features.parameters():
+        #     p.requires_grad = True
         self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
                                     weight_decay=train_args['weight_decay'])
-
+        # for _, p in zip(range(10000), next(self.model.children()).children()):
+        #     p.requires_grad = False
+        #     print("freeze: ", p)
+        # print(self.optimizer.param_groups[0])
         self.start_epoch = 0
         self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
                                train_args['norm_cood'], self.device, train_args['num_of_iter_in_ot'],
@@ -125,7 +130,7 @@ class Trainer(object):
                     'train_image_count': len(self.dataloaders['train'])}
         self.logger.add_hparams({**self.train_args, **img_cnts},
                                 {'best_mse': np.inf, 'best_mae': np.inf,
-                                'best_count': -1}, run_name='hparams')
+                                'best_count': 0}, run_name='hparams')
 
     def train(self):
         """training process"""
@@ -212,7 +217,7 @@ class Trainer(object):
                     np.sqrt(epoch_mse.get_avg()), epoch_mae.get_avg(),
                     time.time() - epoch_start), self.epoch)
         model_state_dic = self.model.state_dict()
-        save_path = os.path.join(self.save_dir, 'latest_ckpt.tar')
+        save_path = os.path.join(self.save_dir, str(self.epoch)+'_ckpt.tar')
         # TODO: Reset best counts option
 
         torch.save({

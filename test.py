@@ -3,8 +3,8 @@ import torch
 import os
 import numpy as np
 import json
-# from myRes import vgg16dres
-from avgg import vgg16_bn
+from myRes import vgg16dres
+# from avgg import vgg16_bn
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -55,14 +55,14 @@ if __name__ == '__main__':
     dataloader = torch.utils.data.DataLoader(dataset, 1, shuffle=False,
                                              num_workers=1, pin_memory=True)
     time_str = datetime.strftime(datetime.now(), '%m%d-%H%M%S')
-    log_dir = os.path.join('runs', 'test_res', args['dataset'], args['model_path'], time_str)
+    log_dir = os.path.join('runs', 'test_res', args['dataset'], time_str)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     logger = SummaryWriter(log_dir)
     create_image = args['pred_density_map']
 
-    # model = vgg16dres(map_location=device)
-    model = vgg16_bn(map_location=device)
+    model = vgg16dres(map_location=device)
+    #model = v(map_location=device)
     model.to(device)
     model.load_state_dict(torch.load(model_path, device))
     model.eval()
