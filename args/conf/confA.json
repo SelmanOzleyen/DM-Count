@@ -1,6 +1,6 @@
 {
     "out_path":"./",
-    "dataset":"sha",
+    "dataset":"shb",
     "lr":1e-4,
     "weight_decay":1e-4,
     "crop_size":256,
@@ -17,7 +17,7 @@
     "reg":10.0,
     "num_of_iter_in_ot":100,
     "norm_cood":0,
-    "conf_name":"dilatedA",
+    "conf_name":"dilatedAwithX",
     "optimizer":"Adam"
 }
 

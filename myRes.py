@@ -107,6 +107,9 @@ cfg = {
 
 def vgg16dres(map_location, pretrained: bool = True, progress: bool = True) -> VGG:
     model = VGG(map_location, make_layers(cfg['D']))
+    for m in model.modules():
+        if isinstance(m, nn.Conv2d):
+            torch.nn.init.xavier_normal_(m.weight, gain=1.0)
     model.load_state_dict(model_zoo.load_url(model_urls['vgg16_bn'], map_location=map_location),
                           strict=False)
     return model
