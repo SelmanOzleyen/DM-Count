@@ -37,7 +37,7 @@ def gen_discrete_map(im_height, im_width, points):
 
 
 class Base(data.Dataset):
-    def __init__(self, root_path, crop_size, downsample_ratio=8):
+    def __init__(self, root_path, crop_size, downsample_ratio=4):
 
         self.root_path = root_path
         self.c_size = crop_size
@@ -154,7 +154,7 @@ class Crowd_nwpu(Base):
 
 class Crowd_sh(Base):
     def __init__(self, root_path, crop_size,
-                 downsample_ratio=8,
+                 downsample_ratio=4,
                  method='train'):
         super().__init__(root_path, crop_size, downsample_ratio)
         self.method = method
@@ -178,6 +178,14 @@ class Crowd_sh(Base):
             return self.train_transform(img, keypoints)
         elif self.method == 'val':
             img = self.trans(img)
+            # padx = 32 - (img.size()[1] % 32)
+            # pady = 32 - (img.size()[2] % 32)
+            # # print("p:",padx,pady,img.size())
+            # padx = padx % 32
+            # pady = pady % 32
+            # if padx != 0 or pady != 0:
+            #     img = torch.nn.functional.pad(img, (0, pady, 0, padx, 0, 0), mode='constant', value=0)
+            # # print("p:",padx,pady,img.size())
             return img, len(keypoints), name
 
     def train_transform(self, img, keypoints):

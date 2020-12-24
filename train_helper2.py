@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
+import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
 
@@ -93,7 +94,7 @@ class Trainer(object):
                                           num_workers=train_args['num_workers'] * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
-        self.model = vgg16dres(map_location=self.device)
+        self.model = vgg16dres(self.device)
         self.model.to(self.device)
         # for p in self.model.features.parameters():
         #     p.requires_grad = True
@@ -110,6 +111,7 @@ class Trainer(object):
         self.tv_loss = nn.L1Loss(reduction='none').to(self.device)
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)
+        self.kl_loss = nn.KLDivLoss(reduction='none', log_target=False)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
         self.best_mse = np.inf
@@ -155,6 +157,8 @@ class Trainer(object):
         epoch_mae = AverageMeter()
         epoch_mse = AverageMeter()
         epoch_start = time.time()
+        
+
         self.model.train()  # Set model to training mode
 
         for step, (inputs, points, st_sizes, gt_discrete) in enumerate(self.dataloaders['train']):
@@ -166,15 +170,16 @@ class Trainer(object):
             wot = self.train_args['wot']
             wtv = self.train_args['wtv']
 
-            with torch.set_grad_enabled(True):
+            with torch.set_grad_enabled(False):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
-                ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
-                ot_loss = ot_loss * wot
-                ot_obj_value = ot_obj_value * wot
-                epoch_ot_loss.update(ot_loss.item(), N)
-                epoch_ot_obj_value.update(ot_obj_value.item(), N)
-                epoch_wd.update(wd, N)
+                #ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
+                #ot_loss = ot_loss * wot
+                #ot_obj_value = ot_obj_value * wot
+                #epoch_ot_loss.update(ot_loss.item(), N)
+                #epoch_ot_obj_value.update(ot_obj_value.item(), N)
+                #epoch_wd.update(wd, N)
+
 
                 # Compute counting loss.
                 count_loss = self.mae(outputs.sum(1).sum(1).sum(1),
@@ -186,11 +191,31 @@ class Trainer(object):
                     2).unsqueeze(3)
                 gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
                 tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
-                    1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
+                     1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
                 epoch_tv_loss.update(tv_loss.item(), N)
 
-                loss = ot_loss + count_loss + tv_loss
-
+                # loss = ot_loss + count_loss + tv_loss
+                # print(outputs)
+                outputs = outputs[0]
+                gt_discrete_normed = gt_discrete_normed[0]
+                out_image = outputs.view(outputs.shape[1], outputs.shape[2], outputs.shape[0])
+                kl_loss = self.kl_loss(gt_discrete_normed, outputs)  # .sum(1).sum(1).sum(1).mean(0)
+                kl_image = kl_loss.view(kl_loss.shape[1], kl_loss.shape[2], kl_loss.shape[0])
+                gt_img = gt_discrete_normed.view(gt_discrete_normed.shape[1], gt_discrete_normed.shape[2], gt_discrete_normed.shape[0])
+                fig = plt.figure()
+                fig.add_subplot(1,4,1,label="kl")
+                plt.imshow(-kl_image.cpu())
+                fig.add_subplot(1,4,2,label="out")
+                plt.imshow(out_image.cpu())
+                fig.add_subplot(1,4,3, label="gt")
+                plt.imshow(gt_img.cpu())
+                fig.add_subplot(1,4,4, label="gt-kl")
+                plt.imshow(out_image.cpu() - kl_image.cpu())
+                plt.show()
+                exit(-1)
+                #print(kl_loss)
+                loss = count_loss + 0.1*kl_loss + tv_loss
+                #loss = kl_loss + count_loss
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
@@ -237,7 +262,9 @@ class Trainer(object):
         epoch_start = time.time()
         self.model.eval()  # Set model to evaluate mode
         epoch_res = []
+        i = 0
         for inputs, count, name in self.dataloaders['val']:
+            i += 1
             inputs = inputs.to(self.device)
             assert inputs.size(0) == 1, 'the batch size should equal to 1 in validation mode'
             with torch.set_grad_enabled(False):

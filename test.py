@@ -62,7 +62,7 @@ if __name__ == '__main__':
     create_image = args['pred_density_map']
 
     model = vgg16dres(map_location=device)
-    #model = v(map_location=device)
+    # model = v(map_location=device)
     model.to(device)
     model.load_state_dict(torch.load(model_path, device))
     model.eval()
