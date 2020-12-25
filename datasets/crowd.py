@@ -230,3 +230,83 @@ class Crowd_sh(Base):
 
         return self.trans(img), torch.from_numpy(keypoints.copy()).float(), st_size, torch.from_numpy(
             gt_discrete.copy()).float()
+
+class Crowd_ucf(Base):
+    def __init__(self, root_path, crop_size,
+                 downsample_ratio=8,
+                 method='train'):
+        super().__init__(root_path, crop_size, downsample_ratio)
+        self.method = method
+        if method not in ['train', 'val']:
+            raise Exception("not implemented")
+
+        self.im_list = sorted(glob(os.path.join(self.root_path, '*.jpg')))
+        #print(os.path.join(self.root_path, '*.jpg'))
+        print('number of img: {}'.format(len(self.im_list)))
+
+    def __len__(self):
+        return len(self.im_list)
+
+    def __getitem__(self, item):
+        img_path = self.im_list[item]
+        name = os.path.basename(img_path).split('.')[0]
+        gd_path = img_path.replace('.jpg','_ann.mat')
+        img = Image.open(img_path).convert('RGB')
+        keypoints = sio.loadmat(gd_path)['annPoints']
+
+        if self.method == 'train':
+            return self.train_transform(img, keypoints)
+        elif self.method == 'val':
+            img = self.trans(img)
+            # padx = 32 - (img.size()[1] % 32)
+            # pady = 32 - (img.size()[2] % 32)
+            # # print("p:",padx,pady,img.size())
+            # padx = padx % 32
+            # pady = pady % 32
+            # if padx != 0 or pady != 0:
+            #     img = torch.nn.functional.pad(img, (0, pady, 0, padx, 0, 0), mode='constant', value=0)
+            # # print("p:",padx,pady,img.size())
+            return img, len(keypoints), name
+
+    def train_transform(self, img, keypoints):
+        wd, ht = img.size
+        st_size = 1.0 * min(wd, ht)
+        # resize the image to fit the crop size
+        if st_size < self.c_size:
+            rr = 1.0 * self.c_size / st_size
+            wd = round(wd * rr)
+            ht = round(ht * rr)
+            st_size = 1.0 * min(wd, ht)
+            img = img.resize((wd, ht), Image.BICUBIC)
+            keypoints = keypoints * rr
+        assert st_size >= self.c_size, print(wd, ht)
+        assert len(keypoints) >= 0
+        i, j, h, w = random_crop(ht, wd, self.c_size, self.c_size)
+        img = F.crop(img, i, j, h, w)
+        if len(keypoints) > 0:
+            keypoints = keypoints - [j, i]
+            idx_mask = (keypoints[:, 0] >= 0) * (keypoints[:, 0] <= w) * \
+                       (keypoints[:, 1] >= 0) * (keypoints[:, 1] <= h)
+            keypoints = keypoints[idx_mask]
+        else:
+            keypoints = np.empty([0, 2])
+
+        gt_discrete = gen_discrete_map(h, w, keypoints)
+        down_w = w // self.d_ratio
+        down_h = h // self.d_ratio
+        gt_discrete = gt_discrete.reshape([down_h, self.d_ratio, down_w, self.d_ratio]).sum(axis=(1, 3))
+        assert np.sum(gt_discrete) == len(keypoints)
+
+        if len(keypoints) > 0:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+                keypoints[:, 0] = w - keypoints[:, 0]
+        else:
+            if random.random() > 0.5:
+                img = F.hflip(img)
+                gt_discrete = np.fliplr(gt_discrete)
+        gt_discrete = np.expand_dims(gt_discrete, 0)
+
+        return self.trans(img), torch.from_numpy(keypoints.copy()).float(), st_size, torch.from_numpy(
+            gt_discrete.copy()).float()
