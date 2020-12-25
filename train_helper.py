@@ -69,6 +69,8 @@ class Trainer(object):
             from datasets.crowd import Crowd_sh as Crowd
         elif dataset_name == 'shb':
             from datasets.crowd import Crowd_sh as Crowd
+        elif dataset_name == 'ucf':
+            from datasets.crowd import Crowd_ucf as Crowd
         else:
             raise NotImplementedError
 
