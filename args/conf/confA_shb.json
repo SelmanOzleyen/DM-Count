@@ -3,7 +3,7 @@
     "dataset":"shb",
     "lr":1e-4,
     "weight_decay":1e-4,
-    "crop_size":512,
+    "crop_size":256,
     "val_epoch":5,
     "resume":false,
     "max_epoch":1000,
