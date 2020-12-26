@@ -18,5 +18,10 @@
         "data_path":"/home/selman/datasets/shb",
         "val_path":"val",
         "train_path":"train_data"      
+    },
+    "ucf":{
+        "data_path":"ucf",
+        "val_path":"val",
+        "train_path":"train"      
     }
 }
