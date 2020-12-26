@@ -1,0 +1,23 @@
+{
+    "out_path":"./",
+    "dataset":"sha",
+    "lr":0.001,
+    "weight_decay":0.01,
+    "crop_size":256,
+    "val_epoch":5,
+    "resume":"ckpts/hrnetA/sha/input-256_wot-0.1_wtv-1_reg-10.0_nIter-100_normCood-0/1223-020915/73_ckpt.tar",
+    "max_epoch":1000,
+    "val_start":50,
+    "batch_size":10,
+    "device":"0",
+    "num_workers":3,
+    "downsample_ratio":4,
+    "wot":0.1,
+    "wtv":1,
+    "reg":10.0,
+    "num_of_iter_in_ot":100,
+    "norm_cood":0,
+    "conf_name":"hrnetA",
+    "optimizer":"AdamW"
+}
+
