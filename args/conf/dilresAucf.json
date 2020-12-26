@@ -5,7 +5,7 @@
     "weight_decay":1e-4,
     "crop_size":256,
     "val_epoch":5,
-    "resume":"ckpts/dilresAucf/ucf/input-256_wot-0.1_wtv-1.0_reg-10.0_nIter-100_normCood-0/1224-222646/638_ckpt.tar",
+    "resume":"pretrained_models/dilres_ucf.pth",
     "max_epoch":3000,
     "val_start":50,
     "batch_size":50,
