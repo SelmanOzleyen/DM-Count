@@ -17,7 +17,7 @@ class OT_Loss(Module):
         # coordinate is same to image space, set to constant since crop size is same
         self.cood = torch.arange(0, c_size, step=stride,
                                  dtype=torch.float32, device=device) + stride / 2
-        self.cood_sqaured = self.cood*self.cood  # storing the precalculated matrix
+        self.cood_squared = self.cood*self.cood  # storing the precalculated matrix
         self.density_size = self.cood.size(0)
         self.cood.unsqueeze_(0)   # [1, #cood]
         if self.norm_cood:
@@ -39,8 +39,8 @@ class OT_Loss(Module):
                     im_points = im_points / self.c_size * 2 - 1  # map to [-1, 1]
                 x = im_points[:, 0].unsqueeze_(1)  # [N, 1]
                 y = im_points[:, 1].unsqueeze_(1)
-                x_dis = -2 * torch.matmul(x, self.cood) + x * x + self.cood_sqaured  # [#gt, #cood]
-                y_dis = -2 * torch.matmul(y, self.cood) + y * y + self.cood_sqaured
+                x_dis = -2 * torch.matmul(x, self.cood) + x * x + self.cood_squared  # [#gt, #cood]
+                y_dis = -2 * torch.matmul(y, self.cood) + y * y + self.cood_squared
                 y_dis.unsqueeze_(2)
                 x_dis.unsqueeze_(1)
                 dis = y_dis + x_dis
