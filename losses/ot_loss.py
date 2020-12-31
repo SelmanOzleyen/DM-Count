@@ -43,7 +43,7 @@ class OT_Loss(Module):
         # assert self.output_size == normed_density.size(2)
         # assert gt.shape == unnormed_density
         normed_density = normed_density.reshape((normed_density.shape[0], normed_density.shape[2]*normed_density.shape[3]))
-        gt = gt.reshape((gt.shape[0],gt.shape[2]*gt.shape[3]))
+        gt = gt.reshape((gt.shape[0], gt.shape[2]*gt.shape[3]))
         #print(gt.shape, normed_density.shape)
         loss = torch.zeros([1]).to(self.device)
         ot_obj_values = torch.zeros([1]).to(self.device)
