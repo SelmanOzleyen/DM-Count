@@ -171,7 +171,7 @@ class Trainer(object):
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
-                ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
+                ot_loss, wd, ot_obj_value = self.ot_loss(outputs, outputs_normed, gt_discrete)
                 ot_loss = ot_loss * wot
                 ot_obj_value = ot_obj_value * wot
                 epoch_ot_loss.update(ot_loss.item(), N)
@@ -191,7 +191,8 @@ class Trainer(object):
                     1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
                 epoch_tv_loss.update(tv_loss.item(), N)
 
-                loss = ot_loss + count_loss + tv_loss
+                # loss = count_loss + wd
+                loss = ot_loss + 0*count_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
