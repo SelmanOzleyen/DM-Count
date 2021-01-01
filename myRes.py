@@ -74,7 +74,21 @@ class VGG(nn.Module):
         B, C, H, W = mu.size()
         mu_sum = mu.view([B, -1]).sum(1).unsqueeze(1).unsqueeze(2).unsqueeze(3)
         mu_normed = mu / (mu_sum + 1e-6)
+        # print(mu, "sad", mu_normed)
         return mu, mu_normed
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
 
 
 def conv2d_bn(in_channels, out_channels, kernel_size=3, padding=2, dilation=2):
@@ -107,9 +121,7 @@ cfg = {
 
 def vgg16dres(map_location, pretrained: bool = True, progress: bool = True) -> VGG:
     model = VGG(map_location, make_layers(cfg['D']))
-    for m in model.modules():
-        if isinstance(m, nn.Conv2d):
-            torch.nn.init.xavier_normal_(m.weight, gain=1.0)
+    model._initialize_weights()
     model.load_state_dict(model_zoo.load_url(model_urls['vgg16_bn'], map_location=map_location),
                           strict=False)
     return model

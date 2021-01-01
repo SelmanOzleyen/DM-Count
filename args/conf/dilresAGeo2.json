@@ -5,10 +5,10 @@
     "weight_decay":1e-4,
     "crop_size":256,
     "val_epoch":5,
-    "resume":"pretrained_models/dilres_shb.pth",
+    "resume":false,
     "max_epoch":3000,
     "val_start":50,
-    "batch_size":1,
+    "batch_size":12,
     "device":"0",
     "num_workers":3,
     "downsample_ratio":8,
@@ -17,7 +17,7 @@
     "reg":10.0,
     "num_of_iter_in_ot":100,
     "norm_cood":0,
-    "conf_name":"dilresAGEO",
+    "conf_name":"dilresAGEO2",
     "optimizer":"Adam"
 }
 

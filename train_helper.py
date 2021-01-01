@@ -107,8 +107,8 @@ class Trainer(object):
         # print(self.optimizer.param_groups[0])
         self.start_epoch = 0
         self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
-                               train_args['norm_cood'], self.device, train_args['num_of_iter_in_ot'],
-                               train_args['reg'])
+                               train_args['batch_size'], self.device, train_args['num_of_iter_in_ot'],
+                               train_args['reg']).to(self.device)
         self.tv_loss = nn.L1Loss(reduction='none').to(self.device)
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)
@@ -171,7 +171,7 @@ class Trainer(object):
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
-                ot_loss, wd, ot_obj_value = self.ot_loss(outputs, outputs_normed, gt_discrete)
+                ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, points)
                 ot_loss = ot_loss * wot
                 ot_obj_value = ot_obj_value * wot
                 epoch_ot_loss.update(ot_loss.item(), N)
@@ -192,7 +192,7 @@ class Trainer(object):
                 epoch_tv_loss.update(tv_loss.item(), N)
 
                 # loss = count_loss + wd
-                loss = ot_loss + 0*count_loss
+                loss = ot_loss + count_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
