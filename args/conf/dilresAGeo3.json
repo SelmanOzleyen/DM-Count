@@ -8,16 +8,16 @@
     "resume":false,
     "max_epoch":3000,
     "val_start":50,
-    "batch_size":12,
+    "batch_size":14,
     "device":"0",
     "num_workers":3,
     "downsample_ratio":8,
     "wot":0.1,
-    "wtv":0.0,
+    "wtv":1.0,
     "reg":10.0,
     "num_of_iter_in_ot":100,
     "norm_cood":0,
-    "conf_name":"dilresAGEO2",
+    "conf_name":"dilresAGEO3ResSGD",
     "optimizer":"Adam"
 }
 

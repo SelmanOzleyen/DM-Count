@@ -3,6 +3,7 @@ import time
 import torch
 import torch.nn as nn
 from torch import optim
+from check_grad import plot_grad_flow
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 import numpy as np
@@ -12,7 +13,7 @@ from datetime import datetime
 # from hrnet import get_pose_net
 # from models import vgg19
 # from avgg import vgg16_bn
-from myRes import vgg16dres
+from myRes3 import vgg16dres
 from losses.ot_loss import OT_Loss
 from utils.pytorch_utils import Save_Handle, AverageMeter
 from torch.utils.tensorboard import SummaryWriter
@@ -97,25 +98,24 @@ class Trainer(object):
                             for x in ['train', 'val']}
         self.model = vgg16dres(map_location=self.device)
         self.model.to(self.device)
-        # for p in self.model.features.parameters():
-        #     p.requires_grad = True
+        for p in self.model.parameters():
+            p.requires_grad = True
         self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
                                     weight_decay=train_args['weight_decay'], amsgrad=False)
-        # for _, p in zip(range(10000), next(self.model.children()).children()):
-        #     p.requires_grad = False
-        #     print("freeze: ", p)
-        # print(self.optimizer.param_groups[0])
+        # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=train_args['lr'])
         self.start_epoch = 0
         self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
                                train_args['batch_size'], self.device, train_args['num_of_iter_in_ot'],
                                train_args['reg']).to(self.device)
         self.tv_loss = nn.L1Loss(reduction='none').to(self.device)
+        self.smooth_l1_loss = nn.SmoothL1Loss(reduction='mean', beta=1.0)
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
         self.best_mse = np.inf
         self.best_count = 0
+        self.max_epoch = train_args['max_epoch']
         if train_args['resume']:
             self.logger.add_text('log/train', 'loading pretrained model from ' + train_args['resume'], 0)
             suf = train_args['resume'].rsplit('.', 1)[-1]
@@ -167,11 +167,10 @@ class Trainer(object):
             N = inputs.size(0)
             wot = self.train_args['wot']
             wtv = self.train_args['wtv']
-
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
                 # Compute OT loss.
-                ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, points)
+                ot_loss, wd, ot_obj_value = self.ot_loss(outputs, points)
                 ot_loss = ot_loss * wot
                 ot_obj_value = ot_obj_value * wot
                 epoch_ot_loss.update(ot_loss.item(), N)
@@ -182,23 +181,31 @@ class Trainer(object):
                 count_loss = self.mae(outputs.sum(1).sum(1).sum(1),
                                       torch.from_numpy(gd_count).float().to(self.device))
                 epoch_count_loss.update(count_loss.item(), N)
-
                 # Compute TV loss.
                 gd_count_tensor = torch.from_numpy(gd_count).float().to(self.device).unsqueeze(1).unsqueeze(
                     2).unsqueeze(3)
-                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
-                    1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
-                epoch_tv_loss.update(tv_loss.item(), N)
-
+                # tv_loss = self.smooth_l1_loss(outputs, gt_discrete)*wtv
+                # print(tv_loss)
+                # gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
+                # tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
+                #      1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
+                # epoch_tv_loss.update(tv_loss.item(), N)
+                # tv_loss = nn.BC
                 # loss = count_loss + wd
-                loss = ot_loss + count_loss
+                # if ot_loss <= 0.1 and count_loss >= :
+                loss = count_loss + ot_loss/(outputs.sum()+1e-8)  # + tv_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                # plot_grad_flow(self.model.named_parameters())
                 self.optimizer.step()
 
                 pred_count = torch.sum(outputs.view(N, -1), dim=1).detach().cpu().numpy()
+                empty = pred_count <= 10.0
+                if all(empty):
+                    print("Warning empty prediction:", pred_count)
+
                 pred_err = pred_count - gd_count
                 epoch_loss.update(loss.item(), N)
                 epoch_mse.update(np.mean(pred_err * pred_err), N)
