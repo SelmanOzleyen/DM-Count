@@ -203,7 +203,8 @@ class Trainer(object):
 
                 pred_count = torch.sum(outputs.view(N, -1), dim=1).detach().cpu().numpy()
                 empty = pred_count <= 10.0
-                if all(empty):
+                gt_empty = 5.0 <= gd_count
+                if all(empty) and all(gt_empty):
                     print("Warning empty prediction:", pred_count)
 
                 pred_err = pred_count - gd_count

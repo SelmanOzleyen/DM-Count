@@ -65,5 +65,4 @@ class OT_Loss(Module):
                 #     loss += temp
                 # else:
                 #     loss += temp
-        loss = loss/(len(gt_points))
         return loss, wd, ot_obj_values

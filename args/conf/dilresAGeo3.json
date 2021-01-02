@@ -1,23 +1,23 @@
 {
     "out_path":"./",
-    "dataset":"ucf",
-    "lr":1e-5,
+    "dataset":"shb",
+    "lr":1e-4,
     "weight_decay":1e-4,
     "crop_size":256,
     "val_epoch":5,
-    "resume":"ckpts/dilresAGEO3ResSGD/ucf/input-256_wot-0.1_wtv-1.0_reg-10.0_nIter-100_normCood-0/0102-195334/best_model_13.pth",
+    "resume":"ckpts/dilresAGEO3ResSGD3_shb/shb/input-256_wot-0.001_wtv-1.0_reg-10.0_nIter-100_normCood-0/0102-224804/42_ckpt.tar",
     "max_epoch":3000,
     "val_start":50,
     "batch_size":14,
     "device":"0",
     "num_workers":3,
     "downsample_ratio":8,
-    "wot":0.1,
+    "wot":0.0001,
     "wtv":1.0,
     "reg":10.0,
     "num_of_iter_in_ot":100,
     "norm_cood":0,
-    "conf_name":"dilresAGEO3ResSGD2",
+    "conf_name":"dilresAGEO3ResSGD3_shb",
     "optimizer":"Adam"
 }
 
