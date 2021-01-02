@@ -1,11 +1,11 @@
 {
     "out_path":"./",
     "dataset":"ucf",
-    "lr":1e-4,
+    "lr":1e-5,
     "weight_decay":1e-4,
     "crop_size":256,
     "val_epoch":5,
-    "resume":false,
+    "resume":"ckpts/dilresAGEO3ResSGD/ucf/input-256_wot-0.1_wtv-1.0_reg-10.0_nIter-100_normCood-0/0102-195334/best_model_13.pth",
     "max_epoch":3000,
     "val_start":50,
     "batch_size":14,
@@ -17,7 +17,7 @@
     "reg":10.0,
     "num_of_iter_in_ot":100,
     "norm_cood":0,
-    "conf_name":"dilresAGEO3ResSGD",
+    "conf_name":"dilresAGEO3ResSGD2",
     "optimizer":"Adam"
 }
 
