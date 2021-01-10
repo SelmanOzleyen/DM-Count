@@ -20,7 +20,7 @@
         "train_path":"train_data"      
     },
     "ucf":{
-        "data_path":"/home/selman/datasets/ucf",
+        "data_path":"/content/drive/MyDrive/dmc/DM-Count/ucf",
         "val_path":"val",
         "train_path":"train"      
     }

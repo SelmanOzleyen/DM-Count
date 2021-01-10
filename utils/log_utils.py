@@ -1,5 +1,5 @@
 import logging
-
+from torch.utils.tensorboard import SummaryWriter
 
 def get_logger(log_file):
     logger = logging.getLogger(log_file)
@@ -22,3 +22,20 @@ def print_config(config, logger):
     """
     for k, v in config.items():
         logger.info("{}:\t{}".format(k.ljust(15), v))
+
+
+class NullLog(SummaryWriter):
+    def __init__(self):
+        pass
+
+    def add_text(self, *args, **kwargs):
+        pass
+
+    def add_hparams(self, *args, **kwargs):
+        pass
+
+    def add_scalar(self, *args, **kwargs):
+        pass
+
+    def add_scalars(self, *args, **kwargs):
+        pass

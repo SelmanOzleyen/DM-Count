@@ -1,6 +1,6 @@
 {
     "jupyter.jupyterServerType": "local",
-    "python.pythonPath": "/home/selman/anaconda3/envs/env/bin/python",
+    "python.pythonPath": "/usr/bin/python3",
     "files.watcherExclude": {
         "**/.git/objects/**": true,
         "**/.git/subtree-cache/**": true,

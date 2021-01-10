@@ -1,23 +1,22 @@
+from myRes3 import vgg16dres2
 import os
 import time
 import torch
 import torch.nn as nn
 from torch import optim
-from check_grad import plot_grad_flow
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 import numpy as np
 from datetime import datetime
-
-# from config.models import POSE_HIGH_RESOLUTION_NET
-# from hrnet import get_pose_net
-# from models import vgg19
-# from avgg import vgg16_bn
-from myRes3 import vgg16dres
+from torch.autograd import Variable
+from models import vgg19
+from myRes3 import vgg16dres2
+import matplotlib.pyplot as plt
 from losses.ot_loss import OT_Loss
+from losses.ot_loss_geo import OT_Loss_Geo
 from utils.pytorch_utils import Save_Handle, AverageMeter
 from torch.utils.tensorboard import SummaryWriter
-# from myRes2 import vgg16dres2
+from utils.log_utils import NullLog
 
 
 def train_collate(batch):
@@ -31,6 +30,12 @@ def train_collate(batch):
 
 class Trainer(object):
     def __init__(self, args, datargs):
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            self.device_count = torch.cuda.device_count()
+            assert self.device_count == 1
+        else:
+            raise Exception("Gpu is not available")
         self.train_args = args
         self.datargs = datargs
 
@@ -52,15 +57,10 @@ class Trainer(object):
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        # TODO: Verify args
-        self.logger = SummaryWriter(log_dir)
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            self.device_count = torch.cuda.device_count()
-            assert self.device_count == 1
+        if train_args['log']:
+            self.logger = SummaryWriter(log_dir)
         else:
-            raise Exception("Gpu is not available")
-
+            self.logger = NullLog()
         dataset_name = train_args['dataset'].lower()
         if dataset_name == 'qnrf':
             from datasets.crowd import Crowd_qnrf as Crowd
@@ -86,7 +86,7 @@ class Trainer(object):
                          crop_size=train_args['crop_size'],
                          downsample_ratio=downsample_ratio, method='val')
         }
-
+        torch.set_printoptions(edgeitems=90)
         self.dataloaders = {x: DataLoader(self.datasets[x],
                                           collate_fn=(train_collate
                                                       if x == 'train' else default_collate),
@@ -96,26 +96,34 @@ class Trainer(object):
                                           num_workers=train_args['num_workers'] * self.device_count,
                                           pin_memory=(True if x == 'train' else False))
                             for x in ['train', 'val']}
-        self.model = vgg16dres(map_location=self.device)
+        if self.train_args['model'] == 'dm':
+            self.model = vgg19()
+        elif self.train_args['model'] == 'resnet2':
+            self.model = vgg16dres2(map_location=self.device)
+        else:
+            raise Exception("Not impl")
         self.model.to(self.device)
-        for p in self.model.parameters():
-            p.requires_grad = True
         self.optimizer = optim.Adam(self.model.parameters(), lr=train_args['lr'],
                                     weight_decay=train_args['weight_decay'], amsgrad=False)
-        # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=train_args['lr'])
+
         self.start_epoch = 0
-        self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
-                               train_args['batch_size'], self.device, train_args['num_of_iter_in_ot'],
-                               train_args['reg']).to(self.device)
+        if self.train_args['loss_type'] == 'geo':
+            self.ot_loss = OT_Loss_Geo(train_args['crop_size'], downsample_ratio,
+                                       train_args['norm_cood'], train_args['p'],
+                                       train_args['reach'], train_args['blur'], train_args['debias'],
+                                       self.device)
+        else:
+            self.ot_loss = OT_Loss(train_args['crop_size'], downsample_ratio,
+                                   train_args['norm_cood'], self.device, train_args['num_of_iter_in_ot'],
+                                   train_args['reg'])
+
         self.tv_loss = nn.L1Loss(reduction='none').to(self.device)
-        self.smooth_l1_loss = nn.SmoothL1Loss(reduction='mean', beta=1.0)
         self.mse = nn.MSELoss().to(self.device)
         self.mae = nn.L1Loss().to(self.device)
         self.save_list = Save_Handle(max_num=1)
         self.best_mae = np.inf
         self.best_mse = np.inf
         self.best_count = 0
-        self.max_epoch = train_args['max_epoch']
         if train_args['resume']:
             self.logger.add_text('log/train', 'loading pretrained model from ' + train_args['resume'], 0)
             suf = train_args['resume'].rsplit('.', 1)[-1]
@@ -158,8 +166,7 @@ class Trainer(object):
         epoch_mse = AverageMeter()
         epoch_start = time.time()
         self.model.train()  # Set model to training mode
-
-        for step, (inputs, points, st_sizes, gt_discrete) in enumerate(self.dataloaders['train']):
+        for step, (inputs, points, _, gt_discrete) in enumerate(self.dataloaders['train']):
             inputs = inputs.to(self.device)
             gd_count = np.array([len(p) for p in points], dtype=np.float32)
             points = [p.to(self.device) for p in points]
@@ -169,8 +176,7 @@ class Trainer(object):
             wtv = self.train_args['wtv']
             with torch.set_grad_enabled(True):
                 outputs, outputs_normed = self.model(inputs)
-                # Compute OT loss.
-                ot_loss, wd, ot_obj_value = self.ot_loss(outputs, points)
+                ot_loss, wd, ot_obj_value = self.ot_loss(outputs_normed, outputs, points)
                 ot_loss = ot_loss * wot
                 ot_obj_value = ot_obj_value * wot
                 epoch_ot_loss.update(ot_loss.item(), N)
@@ -181,32 +187,25 @@ class Trainer(object):
                 count_loss = self.mae(outputs.sum(1).sum(1).sum(1),
                                       torch.from_numpy(gd_count).float().to(self.device))
                 epoch_count_loss.update(count_loss.item(), N)
+
                 # Compute TV loss.
                 gd_count_tensor = torch.from_numpy(gd_count).float().to(self.device).unsqueeze(1).unsqueeze(
                     2).unsqueeze(3)
-                # tv_loss = self.smooth_l1_loss(outputs, gt_discrete)*wtv
-                # print(tv_loss)
-                # gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
-                # tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
-                #      1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
-                # epoch_tv_loss.update(tv_loss.item(), N)
-                # tv_loss = nn.BC
-                # loss = count_loss + wd
-                # if ot_loss <= 0.1 and count_loss >= :
-                loss = count_loss + ot_loss/(outputs.sum()+1e-8)  # + tv_loss
-
+                gt_discrete_normed = gt_discrete / (gd_count_tensor + 1e-6)
+                tv_loss = (self.tv_loss(outputs_normed, gt_discrete_normed).sum(1).sum(1).sum(
+                    1) * torch.from_numpy(gd_count).float().to(self.device)).mean(0) * wtv
+                epoch_tv_loss.update(tv_loss.item(), N)
+                loss = ot_loss + count_loss + tv_loss
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                # plot_grad_flow(self.model.named_parameters())
+                for p in self.model.parameters():
+                    if p.requires_grad and (1e-8 >= torch.abs(p.grad)).all():
+                        print("empty_grad:", p.names, '\t', p.grad.sum(), '\t', p.grad_fn)
                 self.optimizer.step()
 
                 pred_count = torch.sum(outputs.view(N, -1), dim=1).detach().cpu().numpy()
-                empty = pred_count <= 10.0
-                gt_empty = 5.0 <= gd_count
-                if all(empty) and all(gt_empty):
-                    print("Warning empty prediction:", pred_count)
-
+                if pred_count.sum() <= 2.0:
+                    print("pred", pred_count.sum())
                 pred_err = pred_count - gd_count
                 epoch_loss.update(loss.item(), N)
                 epoch_mse.update(np.mean(pred_err * pred_err), N)
@@ -232,7 +231,6 @@ class Trainer(object):
                     time.time() - epoch_start), self.epoch)
         model_state_dic = self.model.state_dict()
         save_path = os.path.join(self.save_dir, str(self.epoch)+'_ckpt.tar')
-        # TODO: Reset best counts option
 
         torch.save({
             'epoch': self.epoch,
@@ -253,7 +251,10 @@ class Trainer(object):
             assert inputs.size(0) == 1, 'the batch size should equal to 1 in validation mode'
             with torch.set_grad_enabled(False):
                 outputs, _ = self.model(inputs)
-                res = count[0].item() - torch.sum(outputs).item()
+                pred = torch.sum(outputs).item()
+                res = count[0].item() - pred
+                if pred <= 0.001:
+                    print("val_pred:", pred)
                 epoch_res.append(res)
 
         epoch_res = np.array(epoch_res)
